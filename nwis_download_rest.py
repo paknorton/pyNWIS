@@ -37,7 +37,7 @@ parser.add_argument('-R', '--region', help='Hydrologic Unit Code for stations to
 args = parser.parse_args()
 
 # Additional parts to add to output filenames
-addin = '%s_region_%s' % (args.statRepType, args.region)
+addin = '%s_HUC_%s' % (args.statRepType, args.region)
 
 # Specifying observations by water year is only legal for annual report types
 if args.statRepType == 'annual' and args.wateryears:
