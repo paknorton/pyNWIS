@@ -9,15 +9,28 @@ Two data files are output
 # Description: Downloads annual, monthly, or daily streamflow observations from
 #              the NWIS REST service for a given Hydrologic Unit Code.
 
+
+from __future__ import (absolute_import, division,
+                        print_function)
+
 import os
 import platform
 import sys
-import urllib2
 import re
 from time import strftime
 import argparse
 import logging
 
+try:
+    # Try importing assuming Python 3.x first
+    # from urllib.parse import urlparse, urlencode
+    from urllib.request import urlopen, Request
+    from urllib.error import HTTPError
+except ImportError:
+    # Otherwise fallback to Python 2.x
+    # from urlparse import urlparse
+    # from urllib import urlencode
+    from urllib2 import urlopen, Request, HTTPError
 
 __version__ = '0.1'
 
@@ -25,11 +38,11 @@ __version__ = '0.1'
 parser = argparse.ArgumentParser(description='Download streamflow observations from NWIS REST service.')
 parser.add_argument('outfile', help='Output filename base (e.g. nwis.tab)')
 parser.add_argument('-w', '--wateryears', help='Observations are stored by water years', action='store_true')
-#parser.add_argument('-d', '--daterange',
-#                    help='Starting and ending date (YYYY-MM-DD YYYY-MM-DD)',
-#                    nargs=2, metavar=('startDate','endDate'), required=True)
+# parser.add_argument('-d', '--daterange',
+#                     help='Starting and ending date (YYYY-MM-DD YYYY-MM-DD)',
+#                     nargs=2, metavar=('startDate','endDate'), required=True)
 parser.add_argument('-t', '--statRepType', help='Statistic report type',
-                    choices=['annual','monthly','daily'], default='annual')
+                    choices=['annual', 'monthly', 'daily'], default='annual')
 parser.add_argument('-s', '--stat', help='Type of statistic', choices=['mean'], default='mean')
 parser.add_argument('-O', '--overwrite', help='Overwrite existing output file', action='store_true')
 parser.add_argument('-R', '--region', help='Hydrologic Unit Code for stations to select')
@@ -37,7 +50,7 @@ parser.add_argument('-R', '--region', help='Hydrologic Unit Code for stations to
 args = parser.parse_args()
 
 # Additional parts to add to output filenames
-addin = '%s_HUC_%s' % (args.statRepType, args.region)
+addin = '{0:s}_HUC_{1:s}'.format(args.statRepType, args.region)
 
 # Specifying observations by water year is only legal for annual report types
 if args.statRepType == 'annual' and args.wateryears:
@@ -49,58 +62,62 @@ else:
 # Construct the filenames for streamgage observations, streamgage information, and the log file
 dirpart = os.path.dirname(args.outfile)
 nameparts = os.path.splitext(os.path.basename(args.outfile))
-obsfile = os.path.join(dirpart, '%s_%s_obs%s' % (nameparts[0], addin, nameparts[1]))
-stnfile = os.path.join(dirpart, '%s_%s_stn%s' % (nameparts[0], addin, nameparts[1]))
-logfile = os.path.join(dirpart, '%s_%s.log' % (nameparts[0], addin))
+obsfile = os.path.join(dirpart, '{0:s}_{1:s}_obs{2:s}'.format(nameparts[0], addin, nameparts[1]))
+stnfile = os.path.join(dirpart, '{0:s}_{1:s}_stn{2:s}'.format(nameparts[0], addin, nameparts[1]))
+logfile = os.path.join(dirpart, '{0:s}_{1:s}.log'.format(nameparts[0], addin))
 
-print 'Streamgage observation file: %s' % obsfile
-print 'Streamgage information file: %s' % stnfile
-print 'Session log file: %s' % logfile
+print('Streamgage observation file: {0:s}'.format(obsfile))
+print('Streamgage information file: {0:s}'.format(stnfile))
+print('Session log file: {0:s}'.format(logfile))
 
 if not args.overwrite and os.path.isfile(stnfile):
-    print "The streamflow information file, %s, already exists.\nTo force overwrite specify -O on command line" % stnfile
+    print(
+        "The streamflow information file, {0:s}, already exists.\nTo force overwrite specify -O on command line".format(
+            stnfile))
     exit(1)
 
 if not args.overwrite and os.path.isfile(obsfile):
-    print "The streamflow observation file, %s, already exists.\nTo force overwrite specify -O on command line" % obsfile
+    print(
+        "The streamflow observation file, {0:s}, already exists.\nTo force overwrite specify -O on command line".format(
+            obsfile))
     exit(1)
 
 # Open logfile and start collecting basic information to write out later
 logging.basicConfig(filename=logfile, level=logging.INFO,
                     format='%(levelname)s:%(asctime)s:%(message)s')
 
-logging.info('Program executed %s' % strftime('%Y-%m-%d %H:%M:%S %z'))
+logging.info('Program executed {0:s}'.format(strftime('%Y-%m-%d %H:%M:%S %z')))
 logging.info(" ".join(sys.argv))
-logging.info('Script version: %s' % __version__)
-logging.info('Script directory: %s' % os.path.dirname(os.path.abspath(__file__)))
-logging.info('Python: %s (%s)' % (platform.python_implementation(), platform.python_version()))
-logging.info('Host: %s' % platform.node())
+logging.info('Script version: {0:s}'.format(__version__))
+logging.info('Script directory: {0:s}'.format(os.path.dirname(os.path.abspath(__file__))))
+logging.info('Python: {0:s} ({1:s})'.format(platform.python_implementation(), platform.python_version()))
+logging.info('Host: {0:s}'.format(platform.node()))
 logging.info('-'*70)
-logging.info('Current directory: %s' % os.getcwd())
-logging.info(' Observation file: %s' % obsfile)
-logging.info('Station info file: %s' % stnfile)
-logging.info('         Log file: %s' % logfile)
+logging.info('Current directory: {0:s}'.format(os.getcwd()))
+logging.info(' Observation file: {0:s}'.format(obsfile))
+logging.info('Station info file: {0:s}'.format(stnfile))
+logging.info('         Log file: {0:s}'.format(logfile))
 
 # URLs can be generated/tested at: http://waterservices.usgs.gov/rest/Site-Test-Tool.html
 base_url = 'http://waterservices.usgs.gov/nwis'
 
-stn_url = '%s/site/?format=rdb&huc=%s&siteOutput=expanded&siteStatus=active&parameterCd=00060&siteType=ST' \
-          % (base_url, args.region)
+stn_url = '{0:s}/site/?format=rdb&huc={1:s}&siteOutput=expanded&siteStatus=active&parameterCd=00060&siteType=ST' \
+    .format(base_url, args.region)
 
-logging.info('Water years: %s' % (args.statRepType == 'annual' and args.wateryears))
-logging.info('Region: %s' % args.region)
-logging.info('Report type: %s' % args.statRepType)
-logging.info('Statistic type: %s' % args.stat)
+logging.info('Water years: {0:s}'.format(args.statRepType == 'annual' and args.wateryears))
+logging.info('Region: {0:s}'.format(args.region))
+logging.info('Report type: {0:s}'.format(args.statRepType))
+logging.info('Statistic type: {0:s}'.format(args.stat))
 logging.info('-'*70)
-logging.info('Base URL: %s' % base_url)
-logging.info('Station URL: %s' % stn_url)
+logging.info('Base URL: {0:s}'.format(base_url))
+logging.info('Station URL: {0:s}'.format(stn_url))
 
 # Open NWIS REST site service
-streamgagesPage = urllib2.urlopen(stn_url)
+streamgagesPage = urlopen(stn_url)
 
 # Open station and observation files
-stn_hdl = open(stnfile,"w")
-obs_hdl = open(obsfile,"w")
+stn_hdl = open(stnfile, "w")
+obs_hdl = open(obsfile, "w")
 
 t1 = re.compile('^#.*$\n?', re.MULTILINE)   # remove comment lines
 t2 = re.compile('^5s.*$\n?', re.MULTILINE)  # remove field length lines
@@ -132,13 +149,13 @@ for cStreamgage in streamgagesFromREST.split('\n'):
             stn_hdl.write(cStreamgage + '\n')
             continue
 
-        obs_url = '%s/stat/?format=rdb&site=%s&statReportType=%s&statType=%s%s&parameterCd=00060'\
-                  % (base_url, ff[fld['site_no']], args.statRepType, args.stat, statYearType)
+        obs_url = '{0:s}/stat/?format=rdb&site={1:s}&statReportType={2:s}&statType={3:s}{4:s}&parameterCd=00060' \
+            .format(base_url, ff[fld['site_no']], args.statRepType, args.stat, statYearType)
         logging.info(obs_url)
-        print "Downloading observations for streamgage: %s" % ff[fld['site_no']]
+        print("Downloading observations for streamgage: {0:s}".format(ff[fld['site_no']]))
 
         # Read site data
-        streamgageObsPage = urllib2.urlopen(obs_url)
+        streamgageObsPage = urlopen(obs_url)
         streamgageObservations = streamgageObsPage.read()
 
         # Strip the comment lines and field length lines from the result using regex
@@ -161,6 +178,4 @@ for cStreamgage in streamgagesFromREST.split('\n'):
 stn_hdl.close()
 obs_hdl.close()
 
-print "Summary written to %s" % logfile
-
-
+print("Summary written to {0:s}".format(logfile))

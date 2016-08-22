@@ -1,13 +1,15 @@
 #!/usr/bin/env python2.7
-"""This script downloads daily streamflow observations from
-the NWIS REST service for a set of streamgages.
+"""This script downloads peak streamflow observations from
+NWIS for a given Hydrologic Unit Code. The NWIS REST
+service is used to get station information while the NWIS
+waterdata site is used to pull the peak flow data.
 Two data files are output
-1) the streamflow observations and 2) the streamgage information."""
+1) the peakflow observations and 2) the streamgage information."""
 
 #      Author: Parker Norton (pnorton@usgs.gov)
-#        Date: 2014-12-31
-# Description: Downloads or daily streamflow observations from
-#              the NWIS REST service for a set of streamgages.
+#        Date: 2016-02-2
+# Description: Downloads peak streamflow observations from
+#              NWIS for a given Hydrologic Unit Code.
 
 from __future__ import (absolute_import, division, print_function)
 # from future.utils import iteritems, itervalues
@@ -33,35 +35,13 @@ __version__ = '0.1'
 # Command line arguments
 parser = argparse.ArgumentParser(description='Download streamflow observations from NWIS REST service.')
 parser.add_argument('outfile', help='Output filename base (e.g. nwis.tab)')
-# parser.add_argument('-w', '--wateryears', help='Observations are stored by water years', action='store_true')
-# parser.add_argument('-d', '--daterange',
-#                     help='Starting and ending date (YYYY-MM-DD YYYY-MM-DD)',
-#                     nargs=2, metavar=('startDate','endDate'), required=True)
-parser.add_argument('-t', '--statRepType', help='Statistic report type',
-                    choices=['annual', 'monthly', 'daily'], default='annual')
-parser.add_argument('-s', '--stat', help='Type of statistic', choices=['mean'], default='mean')
 parser.add_argument('-O', '--overwrite', help='Overwrite existing output file', action='store_true')
 parser.add_argument('-R', '--region', help='Hydrologic Unit Code for stations to select')
 
 args = parser.parse_args()
 
-# List of streamgages for download
-sglist = ['05536890', '05536995', '05537980', '05527500', '05543010', '05543500']
-sitelist = ','.join(sglist)
-
-# List of parameter codes to retrieve
-plist = ['00095', '00300', '00400', '63680', '99133']
-paramList = ','.join(plist)
-
 # Additional parts to add to output filenames
-addin = '{0:s}_region_{1:s}'.format(args.statRepType, args.region)
-
-# Specifying observations by water year is only legal for annual report types
-if args.statRepType == 'annual' and args.wateryears:
-    statYearType = '&statYearType=water'
-    addin += '_WY'
-else:
-    statYearType = ''
+addin = 'HUC_{0:s}'.format(args.region)
 
 # Construct the filenames for streamgage observations, streamgage information, and the log file
 dirpart = os.path.dirname(args.outfile)
@@ -103,15 +83,17 @@ logging.info('Station info file: {0:s}'.format(stnfile))
 logging.info('         Log file: {0:s}'.format(logfile))
 
 # URLs can be generated/tested at: http://waterservices.usgs.gov/rest/Site-Test-Tool.html
+
+# TODO: sometimes the URLs can change an a redirect is returned when trying to download
+#       data. We need to intercept this, print a warning and then use the new url for
+#       downloads.
 base_url = 'http://waterservices.usgs.gov/nwis'
+base_waterdata_url = 'http://nwis.waterdata.usgs.gov/usa/nwis'
 
-stn_url = '{0:s}/site/?format=rdb&sites={1:s}&siteOutput=expanded&siteStatus=active&parameterCd={2:s}&siteType=ST' \
-    .format(base_url, sitelist, paramList)
+stn_url = '{0:s}/site/?format=rdb&huc={1:s}&siteStatus=active&outputDataTypeCd=pk' \
+    .format(base_url, args.region)
 
-logging.info('Water years: {0:s}'.format(args.statRepType == 'annual' and args.wateryears))
-logging.info('Sites: {0:s}'.format(sitelist))
-logging.info('Report type: {0:s}'.format(args.statRepType))
-logging.info('Statistic type: {0:s}'.format(args.stat))
+logging.info('Region: {0:s}'.format(args.region))
 logging.info('-'*70)
 logging.info('Base URL: {0:s}'.format(base_url))
 logging.info('Station URL: {0:s}'.format(stn_url))
@@ -134,8 +116,6 @@ streamgagesFromREST = t1.sub('', streamgagesFromREST, 0)
 streamgagesFromREST = t2.sub('', streamgagesFromREST, 0)
 
 fld = {}
-print(streamgagesFromREST)
-exit()
 
 # Each request gives a new header; we only want one
 header_written = False
@@ -155,10 +135,9 @@ for cStreamgage in streamgagesFromREST.split('\n'):
             stn_hdl.write(cStreamgage + '\n')
             continue
 
-        obs_url = '{0:s}/stat/?format=rdb&site={1:s}&statReportType={2:s}&statType={3:s}{4:s}&parameterCd=00060' \
-            .format(base_url, ff[fld['site_no']], args.statRepType, args.stat, statYearType)
+        obs_url = '{0:s}/peak/?format=rdb&site_no={1:s}&'.format(base_waterdata_url, ff[fld['site_no']])
         logging.info(obs_url)
-        print("Downloading observations for streamgage: {0:s}".format(ff[fld['site_no']]))
+        print("Downloading peakflow observations for streamgage: {0:s}".format(ff[fld['site_no']]))
 
         # Read site data
         streamgageObsPage = urlopen(obs_url)
@@ -177,11 +156,12 @@ for cStreamgage in streamgagesFromREST.split('\n'):
                 else:
                     header_written = True
             if len(obs) > 0:
-                obs_hdl.write(obs + '\n')
+                # waterdata site returns stupid dos line endings - strip them out
+                obs_hdl.write(obs.strip('\r') + '\n')
 
         # Write the streamgage information file
         stn_hdl.write(cStreamgage + '\n')
 stn_hdl.close()
 obs_hdl.close()
 
-print("Summary written to {0:s}".format(logfile))
+print("Summary written to %s" % logfile)
