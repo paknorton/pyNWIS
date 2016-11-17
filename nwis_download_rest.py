@@ -104,7 +104,7 @@ base_url = 'http://waterservices.usgs.gov/nwis'
 stn_url = '{0:s}/site/?format=rdb&huc={1:s}&siteOutput=expanded&siteStatus=active&parameterCd=00060&siteType=ST' \
     .format(base_url, args.region)
 
-logging.info('Water years: {0:s}'.format(args.statRepType == 'annual' and args.wateryears))
+logging.info('Water years: {0:s}'.format(str(args.statRepType == 'annual' and args.wateryears)))
 logging.info('Region: {0:s}'.format(args.region))
 logging.info('Report type: {0:s}'.format(args.statRepType))
 logging.info('Statistic type: {0:s}'.format(args.stat))
