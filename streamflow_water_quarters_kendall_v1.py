@@ -107,6 +107,7 @@ log_list.append('Max p-value: %0.2f' % args.pval)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Read in the streamgage information
+# stn_col_names = ['site_no', 'station_nm', 'PROV_TERR_STATE_LOC', 'dec_lat_va', 'dec_long_va',
 stn_col_names = ['site_no', 'station_nm', 'dec_lat_va', 'dec_long_va',
                  'drain_area_va',
                  # 'coord_datum_cd', 'alt_va', 'huc_cd', 'drain_area_va',
