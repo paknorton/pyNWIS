@@ -12,6 +12,7 @@ are written to a tab-delimited output file.
 #              based on a date range. The Kendal Tau results are then written to
 #              a tab-delimited file.
 from __future__ import (absolute_import, division, print_function)
+from future.utils import iteritems  # , iterkeys
 
 import os
 import platform
@@ -27,8 +28,12 @@ import calendar
 from collections import OrderedDict
 from collections import Counter
 
+print('kendal_version: ' + str(nr3.__version__))
 __author__ = 'Parker Norton (pnorton@usgs.gov)'
 __version__ = '0.2'
+
+# TODO: This code needs some work. The wateryears argument really isn't used, but the for the quarters is hardcoded
+#       for the assumption that these are quarters in water years. There needs to be better flexibility.
 
 
 def dparse(*dstr):
@@ -43,6 +48,7 @@ def dparse(*dstr):
         dint.append(calendar.monthrange(*dint)[1])
 
     return datetime.datetime(*dint)
+
 
 # Command line arguments
 parser = argparse.ArgumentParser(description='Compute Kendall tau from NWIS annual streamflow observations')
@@ -72,7 +78,7 @@ if not args.overwrite and os.path.isfile(args.outfile):
 
 
 # Create a logfile for the work
-#logfile = '%s/%s.log' % (os.path.dirname(args.outfile), os.path.splitext(os.path.basename(args.outfile))[0])
+# logfile = '%s/%s.log' % (os.path.dirname(args.outfile), os.path.splitext(os.path.basename(args.outfile))[0])
 logfile = '%s.log' % args.outfile
 loghdl = open(logfile, 'w')
 log_list = []
@@ -114,7 +120,7 @@ stn_col_names = ['site_no', 'station_nm', 'dec_lat_va', 'dec_long_va',
                  'contrib_drain_area_va']
 stn_col_types = [np.str_, np.str_, np.float_, np.float_, np.str_, np.float_,
                  np.str_, np.float_, np.float_]
-stn_cols = dict(zip(stn_col_names,stn_col_types))
+stn_cols = dict(zip(stn_col_names, stn_col_types))
 
 stations = pd.read_csv(args.stnfile, sep='\t', usecols=stn_col_names, dtype=np.str_)
 
@@ -147,7 +153,7 @@ thedata = thedata.groupby(['site_no', 'ts_id']).filter(lambda x: len(x) >= por)
 # Pivot the table so thedate is the row index and each site is a column
 sitedataByCol = thedata.reset_index().pivot(index='thedate', columns='site_no', values='mean_va')
 
-sitedata_wq1 = sitedataByCol.resample('Q-SEP', how='mean')
+sitedata_wq1 = sitedataByCol.resample('Q-SEP').mean()
 
 
 # ------------------------------------------------------------------------
@@ -163,17 +169,17 @@ sitedata_wq_obs['waterYr'] = aa.year
 sitedata_wq_obs['wQtr'] = aa.quarter
 
 sitedata_wq_obs['waterYr'] = np.where(sitedata_wq_obs['wQtr'] == 4,
-                                        sitedata_wq_obs['waterYr']+1, sitedata_wq_obs['waterYr'])
+                                      sitedata_wq_obs['waterYr']+1, sitedata_wq_obs['waterYr'])
 sitedata_wq_obs['wQtr'] = np.where(sitedata_wq_obs['wQtr'] < 4,
                                    sitedata_wq_obs['wQtr']+1, 1)
 
 # Add informational period field
 sitedata_wq_obs['period'] = 'WY%d to WY%d; p-val = %.2f' % (sitedata_wq_obs['waterYr'].min(), 
-                                                          sitedata_wq_obs['waterYr'].max(),
-                                                          args.pval)
+                                                            sitedata_wq_obs['waterYr'].max(),
+                                                            args.pval)
 
 sitedata_wq_obs.to_csv('%s_obs.tab' % args.outfile, sep='\t', header=True, index=False,
-                       float_format='%.3f',
+                       # float_format='%.3f',
                        columns=['siteno', 'waterYr', 'wQtr', 'avgQ', 'period'])
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -207,7 +213,7 @@ for qq in [1, 2, 3, 4]:
 outdata = {'site_no': [], 'wQtr': [], 'pval': [], 'tau': [], 'trend': []}
 qrescount = OrderedDict()
 
-for ss, kk in outresult.iteritems():
+for ss, kk in iteritems(outresult):
     for ii, qq in enumerate(kk):
 
         # result indices: tau,0; svar,1; z,2; pval,3
@@ -247,7 +253,7 @@ merged_df = pd.merge(testdf, stations, on='site_no', how='left')
 merged_df.to_csv('%s_kendall.tab' % args.outfile, sep='\t', float_format='%1.5f', header=True, index=False)
 
 log_list.append('\n======= Summary =======')
-for kk, vv in qrescount.iteritems():
+for kk, vv in iteritems(qrescount):
     log_list.append('----- Quarter %s -----' % kk)
     log_list.append(' Total stations: %d' % vv['total'])
     log_list.append('  Upward trends: %d' % vv['up'])

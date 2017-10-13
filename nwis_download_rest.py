@@ -149,7 +149,7 @@ for cStreamgage in streamgagesFromREST.split('\n'):
             stn_hdl.write(cStreamgage + '\n')
             continue
 
-        obs_url = '{0:s}/stat/?format=rdb&site={1:s}&statReportType={2:s}&statType={3:s}{4:s}&parameterCd=00060' \
+        obs_url = '{0:s}/stat/?format=rdb&site={1:s}&statReportType={2:s}&statType={3:s}{4:s}&parameterCd=00060&access=3' \
             .format(base_url, ff[fld['site_no']], args.statRepType, args.stat, statYearType)
         logging.info(obs_url)
         print("Downloading observations for streamgage: {0:s}".format(ff[fld['site_no']]))
