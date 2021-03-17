@@ -75,6 +75,9 @@ def wyr_to_datetime(yr):
 
 
 def main():
+    print('DO NOT USE THIS VERSION - see utilities')
+    exit()
+
     # Command line arguments
     parser = argparse.ArgumentParser(description='Compute Kendall tau from NWIS annual streamflow observations')
     parser.add_argument('obsfile', help='NWIS annual streamflow filename')
@@ -131,25 +134,21 @@ def main():
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Read in the streamgage information
     stn_col_names = ['site_no', 'station_nm', 'dec_lat_va', 'dec_long_va',
-                     # 'coord_datum_cd', 'alt_va', 'huc_cd',
                      'drain_area_va', 'contrib_drain_area_va']
-    stn_col_types = [np.str_, np.str_, np.float_, np.float_, np.str_, np.float_,
-                     np.str_, np.float_, np.float_]
+    stn_col_types = [np.str_, np.str_, np.float_, np.float_, np.float_, np.float_]
     stn_cols = dict(zip(stn_col_names, stn_col_types))
-    print('stn_col_names', type(stn_col_names))
-    print('stn_col_types', type(stn_col_types))
-    print(stn_cols)
 
-    stations = pd.read_csv(args.stnfile,
-                           sep='\t',
-                           usecols=stn_col_names,
-                           dtype=np.str_)
+    stations = pd.read_csv(args.stnfile, sep='\t', usecols=stn_col_names,
+                           dtype=stn_cols)
+
+    stations.set_index('site_no', inplace=True)
 
     # Have to force numeric conversion after the fact when there are
     # null values in a column
     for dd in stations.columns:
         if stn_cols[dd] == np.float_:
-            stations[dd] = stations[dd].convert_objects(convert_numeric='force')
+            stations[dd] = pd.to_numeric(stations[dd], errors='coerce')
+            # stations[dd] = stations[dd].convert_objects(convert_numeric='force')
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # Import the streamflow data. Use a custom date parser to create datetime values
@@ -228,22 +227,38 @@ def main():
             else:
                 outdata['trend'].append(0)
         else:
-            outdata['trend'].append(0)
+            # Mark non-significant trends so GIS can handle the symbology easier
+            if result[0] < 0:
+                outdata['trend'].append(-2)
+            elif result[0] > 0:
+                outdata['trend'].append(2)
+            else:
+                outdata['trend'].append(0)
 
     log_list.append('-'*70)
-    log_list.append(' Total stations: %d' % rescount['total'])
-    log_list.append('  Upward trends: %d' % rescount['up'])
-    log_list.append('Downward trends: %d' % rescount['down'])
+    log_list.append(f'Trends summary (total/up/down): {args.outfile},{rescount["total"]},{rescount["up"]},{rescount["down"]}')
+    # log_list.append(' Total stations: %d' % rescount['total'])
+    # log_list.append('  Upward trends: %d' % rescount['up'])
+    # log_list.append('Downward trends: %d' % rescount['down'])
     log_list.append('='*70)
 
     # Convert dictionary to a dataframe
     testdf = pd.DataFrame(outdata, columns=['site_no', 'pval', 'tau', 'trend'])
+    testdf.set_index('site_no', inplace=True)
 
     # Merge the site information with the trend results
-    merged_df = pd.merge(testdf, stations, on='site_no', how='left')
+    # merged_df = pd.merge(testdf, stations, on='site_no', how='left')
+    merged_df = pd.merge(stations, testdf, left_index=True, right_index=True, how='right')
 
+    # Compute a few statistics
+    lastten = sitedataByCol.last('10Y').mean().rename('last_ten_yr')
+    firstten = sitedataByCol.first('10Y').mean().rename('first_ten_yr')
+    pct_chg = ((lastten - firstten) / firstten).rename('pct_chg')
+    df_stats = pd.concat([firstten, lastten, pct_chg], axis=1)
+
+    merged_df = pd.merge(merged_df, df_stats, left_index=True, right_index=True, how='left')
     # Write the dataframe out to a csv file
-    merged_df.to_csv('%s_kendall.tab' % args.outfile, sep='\t', float_format='%1.5f', header=True, index=False)
+    merged_df.to_csv('%s_kendall.tab' % args.outfile, sep='\t', float_format='%1.5f', header=True, index=True)
 
     # Write the log file
     for xx in log_list:

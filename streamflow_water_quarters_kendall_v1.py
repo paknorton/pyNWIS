@@ -33,7 +33,7 @@ __author__ = 'Parker Norton (pnorton@usgs.gov)'
 __version__ = '0.2'
 
 # TODO: This code needs some work. The wateryears argument really isn't used, but the for the quarters is hardcoded
-#       for the assumption that these are quarters in water years. There needs to be better flexibility.
+#       with the assumption that these are quarters in water years. There needs to be better flexibility.
 
 
 def dparse(*dstr):
@@ -49,6 +49,9 @@ def dparse(*dstr):
 
     return datetime.datetime(*dint)
 
+
+print('DO NOT USE THIS VERSION - see utilities')
+exit()
 
 # Command line arguments
 parser = argparse.ArgumentParser(description='Compute Kendall tau from NWIS annual streamflow observations')
@@ -241,7 +244,13 @@ for ss, kk in iteritems(outresult):
             else:
                 outdata['trend'].append(0)
         else:
-            outdata['trend'].append(0)
+            # Mark non-significant trends so GIS can handle the symbology easier
+            if qq[0] < 0:
+                outdata['trend'].append(-2)
+            elif qq[0] > 0:
+                outdata['trend'].append(2)
+            else:
+                outdata['trend'].append(0)
 
 # Convert dictionary to a dataframe
 testdf = pd.DataFrame(outdata, columns=['site_no', 'wQtr', 'pval', 'tau', 'trend'])

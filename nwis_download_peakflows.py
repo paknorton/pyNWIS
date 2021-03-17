@@ -32,6 +32,9 @@ except ImportError:
 
 __version__ = '0.1'
 
+print('DO NOT USE THIS VERSION - see utilities')
+exit()
+
 # Command line arguments
 parser = argparse.ArgumentParser(description='Download streamflow observations from NWIS REST service.')
 parser.add_argument('outfile', help='Output filename base (e.g. nwis.tab)')
