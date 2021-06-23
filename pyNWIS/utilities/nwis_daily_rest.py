@@ -198,6 +198,19 @@ def main():
                         continue
                     else:
                         header_written = True
+                        obs_fld = obs.split('\t')
+
+                        # Rename certain fields to remove TS_ID portion
+                        for ii, xx in enumerate(obs_fld):
+                            if xx not in ['agency_cd', 'site_no', 'datetime']:
+                                for pp in args.parameters:
+                                    for ss in args.stat:
+                                        if f'{pp}_{ss}_cd' in xx:
+                                            obs_fld[ii] = f'{pp}_{ss}_cd'
+                                        elif f'{pp}_{ss}' in xx:
+                                            obs_fld[ii] = f'{pp}_{ss}'
+                        obs = '\t'.join(obs_fld)
+
                 if len(obs) > 0:
                     if obs[0] != '\t':
                         # Empty data returns can have all tabs
